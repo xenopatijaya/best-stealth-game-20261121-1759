@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gallery After Dark — a stealth heist</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #0b0a12;
+    color: #e8e4d8;
+    font-family: Georgia, 'Times New Roman', serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+  }
+  header { text-align: center; padding: 10px 0 4px; }
+  header h1 {
+    margin: 0;
+    font-size: 26px;
+    letter-spacing: 4px;
+    color: #ffd75a;
+    text-transform: uppercase;
+  }
+  header p { margin: 2px 0 0; font-size: 13px; color: #9a94a8; font-style: italic; }
+  #hud {
+    width: min(1040px, 96vw, calc((100dvh - 150px) * 1040 / 720));
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    justify-content: space-between;
+    background: #17141f;
+    border: 1px solid #3a3450;
+    border-radius: 8px;
+    padding: 7px 12px;
+    margin: 6px 0;
+    font-size: 14px;
+    flex-wrap: wrap;
+  }
+  #hud .stat { white-space: nowrap; }
+  #hud-level { color: #ffd75a; font-weight: bold; }
+  #hud-chances { color: #ff7a7a; letter-spacing: 2px; }
+  #eye-wrap { display: flex; align-items: center; gap: 6px; }
+  #hud-eye-bar {
+    width: 120px; height: 12px;
+    background: #2a2438;
+    border: 1px solid #555;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  #hud-eye-fill { height: 100%; width: 0%; background: #7ee787; transition: width 0.15s; }
+  #hud-eye-label { min-width: 74px; font-size: 12px; }
+  #hud-message {
+    width: min(1040px, 96vw, calc((100dvh - 150px) * 1040 / 720));
+    min-height: 20px;
+    text-align: center;
+    color: #ffd75a;
+    font-style: italic;
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  #stage { position: relative; width: min(1040px, 96vw, calc((100dvh - 150px) * 1040 / 720)); }
+  /* In a deterministic ?shot= frame the header and footer are hidden so
+     the whole 1040x720 canvas fits a 1280x720 capture. */
+  body.shot header, body.shot footer { display: none; }
+  body.shot #stage { width: min(1040px, 96vw, calc((100dvh - 80px) * 1040 / 720)); }
+  body.shot #hud, body.shot #hud-message { width: min(1040px, 96vw, calc((100dvh - 80px) * 1040 / 720)); }
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 2px solid #3a3450;
+    border-radius: 6px;
+    background: #0b0a12;
+  }
+  .screen {
+    position: absolute;
+    inset: 0;
+    background: rgba(8, 7, 14, 0.88);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+    border-radius: 6px;
+  }
+  .screen.hidden { display: none; }
+  .screen h2 { margin: 0 0 8px; font-size: 34px; letter-spacing: 3px; color: #ffd75a; text-transform: uppercase; }
+  .screen h3 { margin: 0 0 8px; font-size: 24px; letter-spacing: 2px; color: #ffd75a; }
+  .screen p { margin: 6px 0; max-width: 560px; line-height: 1.5; font-size: 15px; }
+  .screen .keys { font-size: 14px; color: #b8b2c8; }
+  .screen .keys b { color: #ffd75a; }
+  button {
+    margin-top: 14px;
+    padding: 10px 26px;
+    font-size: 16px;
+    font-family: inherit;
+    letter-spacing: 2px;
+    background: #ffd75a;
+    color: #17141f;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  button:hover { background: #ffe08a; }
+  button.ghost { background: transparent; color: #e8e4d8; border: 1px solid #6a6390; }
+  footer { padding: 8px; font-size: 12px; color: #6a6390; text-align: center; }
+  footer b { color: #9a94a8; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Gallery After Dark</h1>
+  <p>The Vesper Gallery &mdash; steal every relic, reach the exit unseen.</p>
+</header>
+<div id="hud">
+  <span class="stat" id="hud-level">Level 1 &mdash; The Marble Hall</span>
+  <span class="stat" id="hud-relics">Relics 0/2</span>
+  <span class="stat" id="hud-pebbles">Pebbles 3</span>
+  <span class="stat" id="hud-chances">&#9829;&#9829;&#9829;</span>
+  <span class="stat" id="hud-timer">0:00</span>
+  <span class="stat" id="hud-best">Best &mdash;</span>
+  <span id="eye-wrap">&#128065; <span id="hud-eye-bar"><span id="hud-eye-fill" style="display:block"></span></span> <span id="hud-eye-label">Unseen</span></span>
+</div>
+<div id="hud-message"></div>
+<div id="stage">
+  <canvas id="game" width="1040" height="720"></canvas>
+
+  <div class="screen" id="screen-title">
+    <h2>Gallery After Dark</h2>
+    <p>You are <b>Moth</b>, a cat burglar in the Vesper Gallery after closing time.
+       Steal every glowing relic, then slip out the green exit &mdash; unseen.</p>
+    <p class="keys"><b>WASD / arrows</b> move &nbsp;&bull;&nbsp; <b>Shift</b> sneak (slow, silent, harder to spot)
+       &nbsp;&bull;&nbsp; <b>Space / click</b> throw a pebble to distract a guard
+       &nbsp;&bull;&nbsp; <b>P</b> pause &nbsp;&bull;&nbsp; <b>R</b> restart level &nbsp;&bull;&nbsp; <b>M</b> mute</p>
+    <p class="keys">Green cones patrol. Yellow means a guard is suspicious and coming to look.
+       Red means you are spotted &mdash; break line of sight for a few seconds and they calm down.
+       Hide in the hedges. Dark floor hides you better than lamplight. Listen: guard
+       footsteps get louder &mdash; and move across your ears &mdash; as they get closer.</p>
+    <button id="btn-start">Begin the heist</button>
+  </div>
+
+  <div class="screen hidden" id="screen-pause">
+    <h3>Paused</h3>
+    <p>The gallery waits. The guards do not.</p>
+    <button id="btn-resume">Resume</button>
+    <button class="ghost" id="btn-restart-pause">Restart level</button>
+  </div>
+
+  <div class="screen hidden" id="screen-win">
+    <h3 id="win-title">Wing Cleared!</h3>
+    <p id="win-stats"></p>
+    <button id="btn-next">Next wing &rarr;</button>
+  </div>
+
+  <div class="screen hidden" id="screen-over">
+    <h3>Caught!</h3>
+    <p id="over-stats"></p>
+    <button id="btn-again">Try again</button>
+  </div>
+
+  <div class="screen hidden" id="screen-level">
+    <h3 id="level-title"></h3>
+    <p id="level-sub"></p>
+  </div>
+</div>
+<footer>
+  A complete stealth game: patrols to learn, cones to dodge, pebbles to throw, hedges to hide in.
+  No network, no files beyond this folder &mdash; just you, the dark, and three watchmen named
+  <b>Bram</b>, <b>Ida</b> and <b>Sol</b>.
+</footer>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
